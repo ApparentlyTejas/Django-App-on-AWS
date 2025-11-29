@@ -1,288 +1,270 @@
-# Django Blog Page Application deployed on AWS Application Load Balancer with Auto Scaling, S3, Relational Database Service(RDS), VPC's Components, Lambda, DynamoDB and CloudFront with Route 53
+Django Blog Application on AWS
+Django blog web application deployed on AWS using Application Load Balancer, Auto Scaling, S3, RDS, VPC components, Lambda, DynamoDB, CloudFront, and Route 53.
 
-## Description
+Description
+This project deploys a Django blog application on AWS with a fully isolated VPC and a multi‑tier architecture. The setup uses an Application Load Balancer in front of an Auto Scaling Group of EC2 instances, backed by an RDS MySQL database in private subnets. CloudFront and Route 53 sit at the edge to handle secure, global access, and static media (images/videos) are stored in S3. S3 object metadata is tracked in DynamoDB via a Lambda function.
 
-The Blog Page Application aims to deploy blog application as a web application written Django Framework on AWS Cloud Infrastructure. This infrastructure has Application Load Balancer with Auto Scaling Group of Elastic Compute Cloud (EC2) Instances and Relational Database Service (RDS) on defined VPC. Also, The CloudFront and Route 53 services are located in front of the architecture and manage the traffic in secure. User is able to upload pictures and videos on own blog page and these are kept on S3 Bucket.
+Users can register, create blog posts, and upload images/videos. User data is stored in RDS, media files go to S3, and all traffic is routed securely through HTTPS with proper network isolation between public, private, and database tiers.
 
-## Project Details
+Project Details
+The goal is to host a Django blog application in its own VPC with a clear separation between web, application, and database layers.
 
-![Project](project.jpg)
+The application is developed by a full‑stack team; this setup focuses on the infrastructure, deployment, and security on AWS.
 
-- Your company has recently ended up a project that aims to serve as Blog web application on isolated VPC environment. You and your colleagues have started to work on the project. Your Developer team has developed the application and you are going to deploy the app in production environment.
+User registration data is stored in an RDS MySQL database, media files are stored in S3, and S3 object listings (photos/videos) are written to a DynamoDB table.
 
-- Application is coded by Fullstack development team and given you as DevOps team. App allows users to write their own blog page to whom user registration data should be kept in separate MySQL database in AWS RDS service and pictures or videos should be kept in S3 bucket. The object list of S3 Bucket containing movies and videos is recorded on DynamoDB table.
+The application is deployed using the Django framework and must be reachable securely from any browser.
 
-- The web application will be deployed using Django framework.
+Source code is kept in GitHub, and the production EC2 instances pull the application from the repository.
 
-- The Web Application should be accessible via web browser from anywhere in secure.
+Infrastructure and VPC
 
-- You are requested to push your program to the project repository on the Github. You are going to pull it into the webservers in the production environment on AWS Cloud.
+All resources are created as new AWS components for this stack.
 
-In the architecture, you can configure your infrastructure using the followings,
+VPC design:
 
-- The application stack should be created with new AWS resources.
+2 Availability Zones.
 
-- Specifications of VPC:
+Each AZ has 1 public and 1 private subnet.
 
-  - VPC has two AZs and every AZ has 1 public and 1 private subnets.
+An Internet Gateway is attached to the VPC.
 
-  - VPC has Internet Gateway
+One public subnet hosts a NAT instance (optionally also used as a bastion host).
 
-  - One of public subnets has NAT Instance.
+Separate route tables for public and private subnets.
 
-  - You might create new instance as Bastion host on Public subnet or you can use NAT instance as Bastion host.
+Route tables and subnet associations are configured according to public/private routing policies.
 
-  - There should be managed private and public route tables.
+Compute and Load Balancing
 
-  - Route tables should be arranged regarding of routing policies and subnet associations based on public and private subnets.
+Application Load Balancer + Auto Scaling Group of Ubuntu 18.04 EC2 instances.
 
-- You should create Application Load Balancer with Auto Scaling Group of Ubuntu 18.04 EC2 Instances within created VPC.
+ALB:
 
-- You should create RDS instance within one of private subnets on created VPC and configure it on application.
+Placed in a security group that allows HTTP (80) and HTTPS (443) from anywhere.
 
-- The Auto Scaling Group should use a Launch Template in order to launch instances needed and should be configured to;
+Uses an ACM certificate for HTTPS.
 
-  - use all Availability Zones on created VPC.
+Redirects HTTP to HTTPS.
 
-  - set desired capacity of instances to ` 2`
+Target group uses HTTP for health checks.
 
-  - set minimum size of instances to ` 2`
+Auto Scaling Group:
 
-  - set maximum size of instances to ` 4`
+Uses a Launch Template to define EC2 configuration.
 
-  - set health check grace period to ` 90 seconds`
+Uses all AZs in the VPC.
 
-  - set health check type to ` ELB`
+Desired capacity: 2 instances.
 
-  - Scaling Policy --> Target Tracking Policy
+Min size: 2, Max size: 4.
 
-    - Average CPU utilization (set Target Value ` %70`)
+Health check type: ELB, grace period: 90 seconds.
 
-    - seconds warm up before including in metric ---> `200`
+Scaling Policy: Target tracking on average CPU utilization at 70% with 200 seconds warm‑up.
 
-    - Set notification to your email address for launch, terminate, fail to launch, fail to terminate instance situations
+Notifications configured for instance launch/terminate/fail events.
 
-- ALB configuration;
+Launch Template
 
-  - Application Load Balancer should be placed within a security group which allows HTTP (80) and HTTPS (443) connections from anywhere.
+Prepares the Django environment based on developer notes.
 
-  - Certification should be created for secure connection (HTTPS)
+Deploys the Django app on port 80.
 
-    - To create certificate, AWS Certificate Manager can be utilized.
+Security group:
 
-  - ALB redirects to traffic from HTTP to HTTPS
+Allows HTTP (80) and HTTPS (443) only from the ALB security group.
 
-  - Target Group
-    - Health Check Protocol is going to be HTTP
+Allows SSH (22) from allowed IPs (original text says “from anywhere”, adjust as needed).
 
-- The Launch Template should be configured to;
+EC2 type: t2.micro.
 
-  - Prepare Django environment on EC2 instance based on Developer Notes,
+Instances are tagged as AWS Capstone Project.
 
-  - Deploy the Django application on port 80.
+IAM role attached to EC2 with full S3 access so Django can talk to S3.
 
-  - Launch Template only allows HTTP (80) and HTTPS (443) ports coming from ALB Security Group and SSH (22) connections from anywhere.
+Database (RDS)
 
-  - EC2 Instances type can be configured as `t2.micro`.
+RDS instance in a private subnet.
 
-  - Instance launched should be tagged `AWS Capstone Project`
+Engine: MySQL 8.0.20.
 
-  - Since Django App needs to talk with S3, S3 full access role must be attached EC2s.
+Instance type: db.t2.micro.
 
-- For RDS Database Instance;
+RDS endpoint is configured in Django settings as per developer notes.
 
-  - Instance type can be configured as `db.t2.micro`
+Only EC2 instances (via correct security groups) can reach RDS on port 3306.
 
-  - Database engine can be `MySQL` with version of `8.0.20`.
+CloudFront and Route 53
 
-  - RDS endpoint should be addressed within settings file of blog application that is explained developer notes.
+CloudFront:
 
-  - Please read carefully "Developer notes" to manage RDS sub settings.
+Used as a cache layer in front of the ALB.
 
-- CloudFront should be set as a cache server which points to Application Load Balance with following configurations;
+Origin Protocol Policy: HTTPS only.
 
-  - The CloudFront distribution should communicate with ALB securely.
+Viewer Protocol Policy: Redirect HTTP to HTTPS.
 
-  - Origin Protocol policy can be selected as `HTTPS only`.
+Cache behavior:
 
-  - Viewer Protocol Policy can be selected as `Redirect HTTP to HTTPS`
+Allows GET, HEAD, OPTIONS, PUT, POST, PATCH, DELETE.
 
-- As cache behavior;
+Forwards all cookies.
 
-  - GET, HEAD, OPTIONS, PUT, POST, PATCH, DELETE methods should be allowed.
+Uses the ACM certificate (can be the same as ALB).
 
-  - Forward Cookies must be selected All.
+Route 53:
 
-  - Newly created ACM Certificate should be used for securing connections. (You can use same certificate with ALB)
+Public hosted zone with a custom hostname.
 
-- Route 53
+Uses HTTPS for access.
 
-  - Connection must be secure (HTTPS).
+Failover routing policy:
 
-  - Your hostname can be used to publish website.
+Primary: CloudFront distribution.
 
-  - Failover routing policy should be set while publishing application
+Secondary: Static website hosted on a separate S3 bucket that shows “page is under construction”.
 
-    - Primary connection is going to be CloudFormation
+Health check monitors CloudFront; Route 53 fails over to the static S3 site if CloudFront is unhealthy.
 
-    - Secondary connection is going to be a static website placed another S3 bucket. This S3 bucket has just basic static website that has a picture said "the page is under construction" given files within S3_static_Website folder
+S3 Buckets
 
-    - Healthcheck should check If CloudFront is healthy or not.
+First S3 Bucket:
 
-- As S3 Bucket
+Created in the same region as the VPC.
 
-  - First S3 Bucket
+VPC endpoint configured to avoid exposing S3 ↔ EC2 traffic to the public internet.
 
-    - It should be created within the Region that you created VPC
+Bucket name is referenced in the Django configuration as per developer notes.
 
-    - Since development team doesn't prefer to expose traffic between S3 and EC2s on internet, Endpoint should be set on created VPC.
+Second S3 Bucket:
 
-    - S3 Bucket name should be addressed within configuration file of blog application that is explained developer notes.
+Used as the failover static website for Route 53.
 
-  - Second S3 Bucket
+Hosts a simple static page with an “under construction” image.
 
-    - This Bucket is going to be used for failover scenario. It has just a basic static website that has a picture said "the page is under construction"
+Lambda + DynamoDB
 
-- To write the objects of S3 on DynamoDB table
+Lambda:
 
-  - Lambda Function
+Runtime: Python 3.8.
 
-    - Lambda function is going to be Python 3.8
+Function code stored in GitHub.
 
-    - Python Function can be found in github repo
+Triggered by S3 events from the first bucket.
 
-    - S3 event is set as trigger
+Runs inside the VPC and needs:
 
-    - Since Lambda needs to talk S3 and DynamoDB and to run on created VPC, S3, DynamoDB full access policies and NetworkAdministrator policy must be attached it
+S3 full access.
 
-    - `S3 Event` must be created first S3 Bucket to trigger Lambda function
+DynamoDB full access.
 
-  - DynamoDB Table
+Appropriate network permissions (e.g., NetworkAdministrator policy).
 
-    - Create a DynamoDB table which has primary key that is `id`
+S3 event:
 
-    - Created DynamoDB table's name should be placed on Lambda function.
+Created on the first S3 bucket to trigger the Lambda on object operations.
 
-## Expected Outcome
+DynamoDB:
 
-![Phonebook App Search Page](./outcome.png)
+Table with primary key id.
 
-### The following topics will be used at the end of the project:
+Table name is configured inside the Lambda function.
 
-- Bash scripting
+Stores metadata for objects in the S3 bucket.
 
-- AWS EC2 Launch Template Configuration
+Expected Outcome
+Technologies / Topics Involved
 
-- AWS VPC Configuration
+Bash scripting
 
-  - VPC
-  - Private and Public Subnets
-  - Private and Public Route Tables
-  - Managing routes
-  - Subnet Associations
-  - Internet Gateway
-  - NAT Gateway
-  - Bastion Host
-  - Endpoint
+EC2 Launch Templates
 
-- AWS EC2 Application Load Balancer Configuration
+VPC (subnets, route tables, routing, IGW, NAT, bastion, endpoints)
 
-- AWS EC2 ALB Target Group Configuration
+Application Load Balancer (ALB), target groups, listeners
 
-- AWS EC2 ALB Listener Configuration
+Auto Scaling Groups
 
-- AWS EC2 Auto Scaling Group Configuration
+RDS (MySQL)
 
-- AWS Relational Database Service Configuration
+Security Groups for EC2, RDS, ALB
 
-- AWS EC2, RDS, ALB Security Groups Configuration
+IAM roles and policies
 
-- IAM Roles configuration
+S3 configuration and static website hosting
 
-- S3 configuration
+DynamoDB tables
 
-- Static website configuration on S3
+Lambda functions and event triggers
 
-- DynamoDB Table configuration
+ACM certificates
 
-- Lambda Function configuration
+CloudFront distributions
 
-- Get Certificate with AWS Certification Manager Configuration
+Route 53 DNS and routing
 
-- AWS CloudFront Configuration
+Git & GitHub for version control
 
-- Route 53 Configuration
+Skills Demonstrated
+Designing and building a VPC with public/private subnets, route tables, NAT, and secure routing.
 
-- Git & Github for Version Control System
+Deploying and configuring a Django application with RDS MySQL as the backend.
 
-### At the end of the project, you will be able to;
+Using user data in a Launch Template to bootstrap EC2 instances with the app stack.
 
-- Construct VPC environment with whole components like public and private subnets, route tables and managing their routes, internet Gateway, NAT Instance.
+Building a Lambda + DynamoDB integration triggered by S3 events.
 
-- Apply web programming skills, importing packages within Python Django Framework
+Wiring together EC2, Launch Templates, ALB, ASG, S3, RDS, CloudFront, and Route 53 into a working end‑to‑end architecture.
 
-- Configure connection to the `MySQL` database.
+Using Git and GitHub (push, pull, commit, branching) as the VCS.
 
-- Demonstrate bash scripting skills using `user data` section within launch template to install and setup Blog web application on EC2 Instance.
+Solution Steps (High Level)
+Create a dedicated VPC and all networking components.
 
-- Create a Lambda function using S3, Lambda and DynamoDB table.
+Create security groups for ALB → EC2 → RDS.
 
-- Demonstrate their configuration skills of AWS VPC, EC2 Launch Templates, Application Load Balancer, ALB Target Group, ALB Listener, Auto Scaling Group, S3, RDS, CloudFront, Route 53.
+Create the RDS instance in a private subnet.
 
-- Apply git commands (push, pull, commit, add etc.) and Github as Version Control System.
+Create two S3 buckets and enable static website hosting on the failover bucket.
 
-## Solution Steps
+Download/clone the project code.
 
-- Step 1: Create dedicated VPC and whole components
+Prepare your GitHub repository.
 
-- Step 2: Create Security Groups (ALB ---> EC2 ---> RDS)
+Write user data for the Launch Template to install and configure the Django app.
 
-- Step 3: Create RDS
+Configure RDS and S3 settings in Django configuration.
 
-- Step 4: Create two S3 Buckets and set one of these as static website
+Create a NAT instance in the public subnet.
 
-- Step 5: Download or clone project definition
+Create the Launch Template and IAM role.
 
-- Step 6: Prepare your Github repository
+Request an ACM certificate for HTTPS.
 
-- Step 7: Prepare a userdata to be utilized in Launch Template
+Create the Application Load Balancer and target group.
 
-- Step 8: Write RDS, S3 in settings file given by Fullstack Developer team
+Create the Auto Scaling Group based on the Launch Template.
 
-- Step 9: Create NAT Instance in Public Subnet
+Create CloudFront in front of the ALB.
 
-- Step 10: Create Launch Template and IAM role for it
+Configure Route 53 with failover routing.
 
-- Step 11: Create certification for secure connection
+Create the DynamoDB table.
+17–18. Create the Lambda function and S3 event trigger.
 
-- Step 12: Create ALB and Target Group
+Notes
+RDS runs in private subnets and is only reachable from EC2 instances via the appropriate security groups and port 3306.
 
-- Step 13: Create Autoscaling Group with Launch Template
+ALB sits in public subnets and redirects HTTP to HTTPS.
 
-- Step 14: Create CloudFront in front of ALB
+EC2 instances sit in private subnets and only accept traffic from the ALB.
 
-- Step 15: Create Route 53 with Failover settings
+S3 traffic from EC2 is kept inside the VPC via an endpoint.
 
-- Step 16: Create DynamoDB Table
+Resources
+Django
 
-- Step 17-18: Create Lambda function
+Django Getting Started
 
-- Step 17-18: Create S3 Event and set it as trigger for Lambda Function
-
-## Notes
-
-- RDS database should be located in private subnet. just EC2 machines that has ALB security group can talk with RDS.
-
-- RDS is located on private groups and only EC2s can talk with it on port 3306
-
-- ALB is located public subnet and it redirects traffic from http to https
-
-- EC2's are located in private subnets and only ALB can talk with them
-
-## Resources
-
-- [Python Django Framework](https://www.djangoproject.com/)
-
-- [Python Django Example](https://realpython.com/get-started-with-django-1/)
-
-- [AWS CLI Command Reference](https://docs.aws.amazon.com/cli/latest/index.html)
+AWS CLI Reference
