@@ -77,10 +77,6 @@ text
 - Writes S3 objects to DynamoDB (PK: id)
 - IAM: S3/DynamoDB full access + VPC network
 
-## Expected Outcome
-
-![Demo](outcome.png)
-
 ## Topics I Implemented
 
 - Bash scripting (user data)
